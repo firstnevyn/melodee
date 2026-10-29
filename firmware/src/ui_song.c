@@ -30,10 +30,12 @@ static void song_edit_cancel(void)
     if (ui.song_row >= CHAIN_ROWS) ui.song_row = CHAIN_ROWS - 1u;
     ui.force = 1;
 }
+/* Every UI pass. The song is the main loop's alone, so its ~2 KB hash runs with IRQs on: under the guard it held
+ * TIMER5 back ~60 us each pass, and the stretched panel columns made the dim LEDs shimmer. */
 static void song_edit_sync(void)
 {
-    uint32_t f = motion_guard();
     uint32_t sig = song_edit_signature();
+    uint32_t f = motion_guard();
     if (se.epoch != pattern_epoch || se.signature != sig) {
         resource_release(RES_SONG_UNDO);
         memset(&se, 0, sizeof se);

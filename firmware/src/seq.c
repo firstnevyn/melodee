@@ -1255,8 +1255,9 @@ static void seq_tick(track_t *t, uint32_t n)
     if (!((recording_tracks | song.rec) & (1u << trk_index(t)))) { seq_grid_tick(t, n); return; }
     if (!song.playing) { seq_grid_tick(t, n); return; }
     if (t->seq_pos >= 0x7FFFFFFFu) {
+        uint32_t seek = chain.running && chain.seek_samples[trk_index(t)];   /* (the first step clears it) */
         seq_grid_tick(t, n);
-        recording_zero(t);
+        recording_zero(t, seek);
         return;
     }
     while (n) {
@@ -1267,7 +1268,7 @@ static void seq_tick(track_t *t, uint32_t n)
         uint32_t before = t->seq_idx;
         if (recording_tracks & (1u << trk_index(t))) recording_tick(t, chunk);
         seq_grid_tick(t, chunk);
-        if (!t->seq_idx && (before || t->p[P_SLEN] == 1) && t->seq_pos < chunk) recording_zero(t);
+        if (!t->seq_idx && (before || t->p[P_SLEN] == 1) && t->seq_pos < chunk) recording_zero(t, 0);
         n -= chunk;
     }
 }

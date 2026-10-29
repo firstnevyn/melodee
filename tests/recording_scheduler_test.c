@@ -85,7 +85,7 @@ static int oracle_scenario(uint32_t count,uint32_t div,int long_gates)
         recording_restore_note(t,i,r);recording_flags[i]=(uint8_t)(i%13u==0u?1u:i%3u==0u?8u:0u);
         expected[i].flags=recording_flags[i];
     }
-    recording_reindex();expected_zero(t);recording_zero(t);
+    recording_reindex();expected_zero(t);recording_zero(t,0);
     int ok=state_matches(t);
     for(uint32_t tick=0;tick<2048 && ok;tick++){
         if(tick==311 && long_gates){song.g[G_BPM]=173;t->p[P_SDIV]=3;}
@@ -99,10 +99,10 @@ static int oracle_scenario(uint32_t count,uint32_t div,int long_gates)
         if(tick==1401)recording_reindex();
         uint32_t period=seq_div_samples(t->p[P_SDIV]),span=step_samples(t,period,t->seq_idx);
         uint32_t n=(tick%19u==0u?70000u:1u+next_random()%127u);
-        if(t->seq_pos>=span){t->seq_pos=0;t->seq_idx=(uint16_t)((t->seq_idx+1u)%16u);if(!t->seq_idx){expected_zero(t);recording_zero(t);}}
+        if(t->seq_pos>=span){t->seq_pos=0;t->seq_idx=(uint16_t)((t->seq_idx+1u)%16u);if(!t->seq_idx){expected_zero(t);recording_zero(t,0);}}
         span=step_samples(t,period,t->seq_idx);if(n>span-t->seq_pos)n=span-t->seq_pos;
         expected_tick(t,n);recording_tick(t,n);t->seq_pos+=n;
-        if(t->seq_pos==span){t->seq_pos=0;t->seq_idx=(uint16_t)((t->seq_idx+1u)%16u);if(!t->seq_idx){expected_zero(t);recording_zero(t);}}
+        if(t->seq_pos==span){t->seq_pos=0;t->seq_idx=(uint16_t)((t->seq_idx+1u)%16u);if(!t->seq_idx){expected_zero(t);recording_zero(t,0);}}
         ok=state_matches(t);
         if(!ok)fprintf(stderr,"scheduler oracle mismatch: count=%u div=%u tick=%u\n",count,div,tick);
     }

@@ -816,6 +816,11 @@ static void recording_release(track_t *t, uint32_t note)
         if (recorded_note(&recording[i]) == note && (recording_flags[i] & 1u))
             recording_finish(i);
 }
+static uint32_t recording_gate(const recorded_note_t *r, uint32_t period)
+{
+    uint32_t gate = (uint32_t)(((uint64_t)r->duration << (recorded_exponent(r))) * period / RECORD_UNIT);
+    return gate ? gate : 1u;
+}
 static void recording_fire(track_t *t, uint32_t i, uint32_t period, uint32_t late)
 {
     recorded_note_t *r = &recording[i];
@@ -824,8 +829,7 @@ static void recording_fire(track_t *t, uint32_t i, uint32_t period, uint32_t lat
     if ((recording_flags[i] & 1u) || ((seq_hush >> trk_index(t)) & 1u)) return;   /* (an edit waiting: seq.c) */
     uint32_t chance = step_chance(&t->step[recording_view(t, r)]);
     if (chance < 100u && rng() % 100u >= chance) return;
-    uint32_t gate = (uint32_t)(((uint64_t)r->duration << (recorded_exponent(r))) * period / RECORD_UNIT);
-    if (!gate) gate = 1;
+    uint32_t gate = recording_gate(r, period);
     drum_event_pitch=r->pitch; drum_event_length=recorded_gate(r)?gate:0;
     trk_note_on(t, recorded_note(r), r->vel);
     chord_auto_observe(t, recorded_note(r));
@@ -844,7 +848,16 @@ static void recording_fire(track_t *t, uint32_t i, uint32_t period, uint32_t lat
     }
     if (remaining) recording_live_add(i);
 }
-static void recording_zero(track_t *t)
+/* seek: playback starts mid-loop (a song cursor). An onset behind the playhead
+ * sounds only while its gate is still open there; the ones already over are
+ * heard for this loop, not fired together as a burst. */
+static int recording_behind(uint32_t i, uint32_t on, uint32_t phase, uint32_t period, uint32_t seek)
+{
+    if (!seek || on >= phase || phase - on < recording_gate(&recording[i], period)) return 0;
+    recording_flags[i] |= 4u;
+    return 1;
+}
+static void recording_zero(track_t *t, uint32_t seek)
 {
     uint32_t period = seq_div_samples((uint32_t)t->p[P_SDIV]);
     uint32_t phase = recording_prefix(t, period, t->seq_idx) + t->seq_pos;
@@ -854,7 +867,8 @@ static void recording_zero(track_t *t)
     uint32_t i = recording_head[recording_owner(t)];
     while (i < RECORD_MAX && recording_due[i] <= phase) {
         uint32_t next = recording_next[i];
-        if (recording_active(t, i)) recording_fire(t, i, period, phase - recording_due[i]);
+        if (recording_active(t, i) && !recording_behind(i, recording_due[i], phase, period, seek))
+            recording_fire(t, i, period, phase - recording_due[i]);
         i = next;
     }
     recording_schedule[trk_index(t)].cursor = (uint16_t)i;
@@ -863,7 +877,7 @@ static void recording_zero(track_t *t)
         recording_flags[i] &= (uint8_t)~4u;
         if (recording_active(t, i)) {
             uint32_t on = recording_play_on(t, i, period);
-            if (on <= phase) recording_fire(t, i, period, phase - on);
+            if (on <= phase && !recording_behind(i, on, phase, period, seek)) recording_fire(t, i, period, phase - on);
         }
     }
 #endif
