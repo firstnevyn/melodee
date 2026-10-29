@@ -201,6 +201,14 @@ static int recorded_block(void)
     bad+=check("a block's right edge releases its retained recorded notes",chain.row==3&&!recording_owns(&trk[1],72));
     seq_stop();chain_prepare_from(2);events_block(1);
     bad+=check("cursor playback inside a block chases an ongoing recorded note",chain.row==2&&trk[1].seq_idx==2&&recording_owns(&trk[1],72));
+    seq_stop();events_block(FS);
+    recorded_note_t past={.duration=8192,.note7=64,.vel=96};       /* one step: over before the cursor */
+    recorded_set_exponent(&past,3); recorded_set_owner(&past,recording_owner(&trk[1]));
+    recording_restore_note(&trk[1],1,past); recording_reindex();
+    trk[1].step[0] = (step_t){{72,64},2,ST_NOTE,SF_RECORDED,96}; trk[1].p[P_VOICE]=V_POLY; pattern_commit(&trk[1]);
+    chain_prepare_from(2);events_block(1);
+    int stale=0; for(uint32_t v=0;v<NVOICE;v++) stale|=trk[1].v[v].active&&trk[1].v[v].note==64;
+    bad+=check("cursor playback leaves recorded notes that ended before it silent",chain.row==2&&recording_owns(&trk[1],72)&&!stale);
     seq_stop();return bad;
 }
 static int song_looping(void)
